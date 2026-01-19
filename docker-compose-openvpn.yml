@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  openvpn:
+    container_name: openvpn
+    image: "kylemanna/openvpn:latest"
+    user: "0:0"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - TZ=Indian/Mauritius
+      - OVPN_DEFROUTE=0  # Set to 0 for split tunneling with .pac file
+    networks:
+      - frontend
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./openvpn-data:/etc/openvpn
+      - ./openvpn-data/scripts:/scripts
+    sysctls:
+      - net.ipv4.ip_forward=1
+    labels:
+      - "traefik.udp.routers.openvpn.entrypoints=openvpn"
+      - "traefik.udp.routers.openvpn.service=openvpn"
+      - "traefik.udp.services.openvpn.loadbalancer.server.port=1194"
+    restart: unless-stopped
+
+networks:
+  frontend:
+    external:
+      name: frontend

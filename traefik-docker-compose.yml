@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  traefik:
+    container_name: traefik
+    image: "traefik:latest"
+    user: "5000:5000"
+    command:
+      # HTTP/HTTPS
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      
+      # UDP for OpenVPN
+      - --entrypoints.openvpn.address=:1194/udp
+      
+      # DNS over TLS
+      - --entrypoints.dnsovertls.address=:853
+      
+      # Docker
+      - --providers.docker
+      - --providers.docker.endpoint=tcp://dockerproxy:2375
+      - --providers.docker.exposedbydefault=false
+      
+      # Logging
+      - --log.level=ERROR
+      
+      # Let's Encrypt
+      - --certificatesresolvers.leresolver.acme.httpchallenge=true
+      - --certificatesresolvers.leresolver.acme.email=nisgopee@pm.me
+      - --certificatesresolvers.leresolver.acme.storage=./acme.json
+      - --certificatesresolvers.leresolver.acme.httpchallenge.entrypoint=web
+    environment:
+      - TZ=Indian/Mauritius
+    networks:
+      - socket
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "853:853"
+      - "1194:1194/udp"
+    volumes:
+      - "./acme.json:/acme.json"
+    labels:
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://login.nissaar.com/"
+      - "traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email"
+      - "traefik.http.middlewares.authelia-basic.forwardauth.address=http://authelia:9091/api/verify?auth=basic"
+      - "traefik.http.middlewares.authelia-basic.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.authelia-basic.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email"
+    restart: unless-stopped
+
+networks:
+  default:
+  frontend:
+    external:
+      name: frontend
+  socket:
+    external: true
